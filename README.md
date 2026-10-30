@@ -2,7 +2,23 @@
 
 ReservaClara es una aplicación web de escritorio para gestionar una reserva de alimentos y equipamiento de emergencia. Permite saber qué se quiere tener, qué se ha comprado, qué se ha consumido, dónde está cada lote y cuántos días de autonomía puede cubrir el hogar.
 
-Aplicación publicada: [reservaclara.vercel.app](https://reservaclara.vercel.app)
+## Capturas de pantalla
+
+### Acceso
+
+![Pantalla de acceso de ReservaClara](public/screenshots/login.jpg)
+
+### Resumen operativo
+
+![Resumen operativo de ReservaClara](public/screenshots/dashboard.jpg)
+
+### Autonomía nutricional
+
+![Módulo de autonomía nutricional](public/screenshots/autonomia.jpg)
+
+### Inventario
+
+![Módulo de inventario](public/screenshots/inventario.jpg)
 
 ## Qué hace
 
