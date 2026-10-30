@@ -1,0 +1,286 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  USER
+}
+
+enum UserStatus {
+  ACTIVE
+  SUSPENDED
+  DELETED
+}
+
+enum InventoryStatus {
+  ACTIVE
+  CONSUMED
+  DISCARDED
+}
+
+enum AlertEntityType {
+  ITEM
+  PACK
+}
+
+enum StockMovementType {
+  PURCHASE
+  CONSUMPTION
+  ADJUSTMENT
+}
+
+model User {
+  id                String             @id @default(cuid())
+  name              String?
+  email             String             @unique
+  emailVerified     DateTime?
+  image             String?
+  passwordHash      String?
+  role              UserRole           @default(USER)
+  status            UserStatus         @default(ACTIVE)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+  members           HouseholdMember[]
+  items             Item[]
+  packs             Pack[]
+  categories        Category[]
+  alertSettings     AlertSettings?
+  alertDeliveries   AlertDelivery[]
+  shoppingItems     ShoppingItem[]
+  plannedStocks     PlannedStock[]
+  movements         StockMovement[]
+  nutritionSettings NutritionSettings?
+  accounts          Account[]
+  sessions          Session[]
+}
+
+model HouseholdMember {
+  id            String   @id @default(cuid())
+  userId        String
+  name          String
+  age           Int      @default(30)
+  dailyCalories Int      @default(2000)
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model NutritionSettings {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  adult     Int      @default(2400)
+  senior    Int      @default(2200)
+  teenager  Int      @default(2400)
+  child     Int      @default(1800)
+  preschool Int      @default(1300)
+  infant    Int      @default(800)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Category {
+  id            String         @id @default(cuid())
+  name          String
+  slug          String
+  description   String?
+  userId        String?
+  parentId      String?
+  isGlobal      Boolean        @default(false)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  user          User?          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent        Category?      @relation("CategoryTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children      Category[]     @relation("CategoryTree")
+  items         Item[]
+  plannedStocks PlannedStock[]
+
+  @@unique([userId, slug])
+  @@index([parentId])
+}
+
+model Item {
+  id              String          @id @default(cuid())
+  userId          String
+  categoryId      String?
+  name            String
+  detail          String?
+  description     String?
+  quantity        Decimal         @db.Decimal(12, 3)
+  unit            String
+  caloriesPerUnit Int?
+  purchaseDate    DateTime?
+  expiresAt       DateTime
+  status          InventoryStatus @default(ACTIVE)
+  notes           String?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category        Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  packItems       PackItem[]
+  alertRecords    AlertDelivery[]
+  movements       StockMovement[]
+  shoppingItem    ShoppingItem?
+
+  @@index([userId, expiresAt])
+  @@index([userId, categoryId])
+}
+
+model PlannedStock {
+  id              String          @id @default(cuid())
+  userId          String
+  categoryId      String?
+  name            String
+  normalizedName  String
+  plannedQuantity Decimal         @db.Decimal(12, 3)
+  unit            String
+  notes           String?
+  active          Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  user            User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category        Category?       @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  movements       StockMovement[]
+  shoppingItems   ShoppingItem[]
+
+  @@unique([userId, normalizedName])
+  @@index([userId, categoryId])
+}
+
+model StockMovement {
+  id             String            @id @default(cuid())
+  userId         String
+  plannedStockId String?
+  itemId         String?
+  type           StockMovementType
+  quantity       Decimal           @db.Decimal(12, 3)
+  occurredAt     DateTime          @default(now())
+  notes          String?
+  user           User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plannedStock   PlannedStock?     @relation(fields: [plannedStockId], references: [id], onDelete: SetNull)
+  item           Item?             @relation(fields: [itemId], references: [id], onDelete: SetNull)
+
+  @@index([userId, occurredAt])
+  @@index([plannedStockId, type])
+}
+
+model ShoppingItem {
+  id                String        @id @default(cuid())
+  userId            String
+  plannedStockId    String?
+  itemId            String?       @unique
+  name              String
+  categoryId        String?
+  desiredQuantity   Decimal       @db.Decimal(12, 3)
+  unit              String
+  purchasedQuantity Decimal       @default(0) @db.Decimal(12, 3)
+  completed         Boolean       @default(false)
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+  user              User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  plannedStock      PlannedStock? @relation(fields: [plannedStockId], references: [id], onDelete: SetNull)
+  item              Item?         @relation(fields: [itemId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, plannedStockId])
+  @@index([userId, completed])
+}
+
+model Pack {
+  id           String          @id @default(cuid())
+  userId       String
+  name         String
+  description  String?
+  code         String?
+  expiresAt    DateTime?
+  location     String?
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  items        PackItem[]
+  alertRecords AlertDelivery[]
+
+  @@index([userId, expiresAt])
+}
+
+model PackItem {
+  id       String  @id @default(cuid())
+  packId   String
+  itemId   String
+  quantity Decimal @db.Decimal(12, 3)
+  pack     Pack    @relation(fields: [packId], references: [id], onDelete: Cascade)
+  item     Item    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@unique([packId, itemId])
+}
+
+model AlertSettings {
+  id         String   @id @default(cuid())
+  userId     String   @unique
+  enabled    Boolean  @default(true)
+  daysBefore Int[]    @default([30, 15, 7])
+  email      String?
+  timezone   String   @default("Europe/Madrid")
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model AlertDelivery {
+  id            String          @id @default(cuid())
+  userId        String
+  itemId        String?
+  packId        String?
+  entityType    AlertEntityType
+  thresholdDays Int
+  sentAt        DateTime        @default(now())
+  resendId      String?
+  errorMessage  String?
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  item          Item?           @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  pack          Pack?           @relation(fields: [packId], references: [id], onDelete: Cascade)
+
+  @@unique([itemId, thresholdDays])
+  @@unique([packId, thresholdDays])
+  @@index([userId, sentAt])
+}
+
+model Account {
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([provider, providerAccountId])
+}
+
+model Session {
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
