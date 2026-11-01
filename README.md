@@ -1,16 +1,16 @@
-# ReservaClara
+# AlertaStock
 
-ReservaClara es una aplicación web de escritorio para gestionar una reserva de alimentos y equipamiento de emergencia. Permite saber qué se quiere tener, qué se ha comprado, qué se ha consumido, dónde está cada lote y cuántos días de autonomía puede cubrir el hogar.
+AlertaStock es una aplicación web de escritorio para gestionar una reserva de alimentos y equipamiento de emergencia. Permite saber qué se quiere tener, qué se ha comprado, qué se ha consumido, dónde está cada lote y cuántos días de autonomía puede cubrir el hogar.
 
 ## Capturas de pantalla
 
 ### Acceso
 
-![Pantalla de acceso de ReservaClara](public/screenshots/login.jpg)
+![Pantalla de acceso de AlertaStock](public/screenshots/login.jpg)
 
 ### Resumen operativo
 
-![Resumen operativo de ReservaClara](public/screenshots/dashboard.jpg)
+![Resumen operativo de AlertaStock](public/screenshots/dashboard.jpg)
 
 ### Autonomía nutricional
 
@@ -22,7 +22,7 @@ ReservaClara es una aplicación web de escritorio para gestionar una reserva de 
 
 ## Qué hace
 
-ReservaClara separa la planificación de la existencia real:
+AlertaStock separa la planificación de la existencia real:
 
 1. **Stock a completar** define el objetivo de cada alimento: por ejemplo, 25 kg de pasta.
 2. **Lista de compra** propone únicamente artículos que todavía tienen unidades pendientes.
@@ -85,8 +85,8 @@ Son valores de planificación, no una recomendación médica. Para mayor precisi
 ### 1. Descargar el proyecto
 
 ```bash
-git clone https://github.com/josejnet/reservaclara.git
-cd reservaclara
+git clone https://github.com/josejnet/alertastock.git
+cd alertastock
 npm install
 ```
 

@@ -31,7 +31,7 @@ export default function AdminLoginPage() {
             <Leaf size={22} fill="currentColor" />
           </div>
           <div>
-            <p className="text-lg font-bold">ReservaClara</p>
+            <p className="text-lg font-bold">AlertaStock</p>
             <p className="text-xs uppercase tracking-[0.18em] text-slate-400">
               Superadministración
             </p>

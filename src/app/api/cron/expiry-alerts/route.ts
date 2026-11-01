@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
     const packs = user.packs.filter((pack) => pack.expiresAt && thresholds.includes(daysBetween(today, pack.expiresAt)));
     if (!items.length && !packs.length) continue;
     const lines = [...items.map((item) => `${item.name} — ${daysBetween(today, item.expiresAt!)} días`), ...packs.map((pack) => `Pack ${pack.name} — ${daysBetween(today, pack.expiresAt!)} días`)].map((line) => `<li>${line}</li>`).join("");
-    const result = await resend.emails.send({ from: process.env.EMAIL_FROM ?? "ReservaClara <onboarding@resend.dev>", to: [user.alertSettings.email ?? user.email], subject: "Alertas de caducidad de tu inventario", html: `<h1>Alertas de caducidad</h1><p>Revisa estos elementos:</p><ul>${lines}</ul>` });
+    const result = await resend.emails.send({ from: process.env.EMAIL_FROM ?? "AlertaStock <onboarding@resend.dev>", to: [user.alertSettings.email ?? user.email], subject: "Alertas de caducidad de tu inventario", html: `<h1>Alertas de caducidad</h1><p>Revisa estos elementos:</p><ul>${lines}</ul>` });
     if (result.error) continue;
     sent++;
     await db.$transaction([...items.map((item) => db.alertDelivery.create({ data: { userId: user.id, itemId: item.id, entityType: "ITEM", thresholdDays: daysBetween(today, item.expiresAt!), resendId: result.data?.id } })), ...packs.map((pack) => db.alertDelivery.create({ data: { userId: user.id, packId: pack.id, entityType: "PACK", thresholdDays: daysBetween(today, pack.expiresAt!), resendId: result.data?.id } }))]);

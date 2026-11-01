@@ -215,7 +215,7 @@ export function SettingsManager() {
     );
     const link = document.createElement("a");
     link.href = url;
-    link.download = "reservaclara_stock_a_completar.csv";
+    link.download = "alertastock_stock_a_completar.csv";
     link.click();
     URL.revokeObjectURL(url);
     flash("Stock exportado en CSV");

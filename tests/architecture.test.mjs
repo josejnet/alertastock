@@ -4,7 +4,7 @@ import test from "node:test";
 
 const read = (file) => readFile(new URL(`../${file}`, import.meta.url), "utf8");
 
-test("el esquema cubre los dominios persistentes de ReservaClara", async () => {
+test("el esquema cubre los dominios persistentes de AlertaStock", async () => {
   const schema = await read("prisma/schema.prisma");
   for (const model of ["User", "Category", "PlannedStock", "Item", "Pack", "PackItem", "HouseholdMember", "NutritionSettings", "AlertSettings"]) {
     assert.match(schema, new RegExp(`model ${model}\\s*\\{`));

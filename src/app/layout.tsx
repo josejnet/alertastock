@@ -13,8 +13,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "ReservaClara — Gestión de previsión",
-  description: "Gestiona tu reserva de alimentos y autonomía familiar.",
+  title: "AlertaStock — Gestión de previsión",
+  description: "Gestiona tu stock de alimentos, equipamiento y autonomía familiar.",
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

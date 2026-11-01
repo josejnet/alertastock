@@ -78,7 +78,7 @@ export function AppShell({ section }: { section: string }) {
             <Leaf size={19} fill="currentColor" />
           </div>
           <div>
-            <p className="text-[15px] font-bold">ReservaClara</p>
+            <p className="text-[15px] font-bold">AlertaStock</p>
             <p className="text-[10px] font-semibold uppercase tracking-[0.18em] text-slate-400">
               Preparación · control · reserva
             </p>
@@ -146,7 +146,7 @@ export function AppShell({ section }: { section: string }) {
             </Link>
             <div>
               <p className="prepper-eyebrow text-[10px] font-bold text-slate-400">
-                ReservaClara · centro de operaciones
+                AlertaStock · centro de operaciones
               </p>
               <h1 className="mt-0.5 text-xl font-bold tracking-tight text-slate-950">
                 {section}
