@@ -5,6 +5,7 @@ import {
   Archive,
   CalendarDays,
   Check,
+  Copy,
   Download,
   FileText,
   MapPin,
@@ -58,6 +59,7 @@ export function PackManager() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("Todas");
   const [showCreate, setShowCreate] = useState(false);
+  const [duplicateSource, setDuplicateSource] = useState<Pack | null>(null);
   const [notice, setNotice] = useState("");
   useEffect(() => {
     const stock = JSON.parse(localStorage.getItem(stockKey) ?? "{}");
@@ -190,6 +192,15 @@ export function PackManager() {
     localStorage.setItem(packsKey, JSON.stringify(next));
     flash(`Pack ${pack.name} eliminado`);
   }
+  function startDuplicate(pack: Pack) {
+    setSelected(pack.items.reduce<Record<string, number>>((result, item) => {
+      result[item.purchaseId] = item.quantity;
+      return result;
+    }, {}));
+    setDuplicateSource(pack);
+    setShowCreate(true);
+    flash(`Contenido de ${pack.name} listo para duplicar`);
+  }
   return (
     <div>
       <div className="mb-8 flex flex-col justify-between gap-4 md:flex-row md:items-end">
@@ -207,7 +218,7 @@ export function PackManager() {
           </p>
         </div>
         <button
-          onClick={() => setShowCreate(true)}
+          onClick={() => { setDuplicateSource(null); setShowCreate(true); }}
           disabled={!selectedCount}
           className="flex w-fit items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
@@ -377,6 +388,14 @@ export function PackManager() {
                   </p>
                 </div>
                 <div className="flex items-center gap-1">
+                  <button
+                    onClick={() => startDuplicate(pack)}
+                    aria-label={`Duplicar pack ${pack.name}`}
+                    title="Duplicar pack"
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-blue-50 hover:text-blue-700"
+                  >
+                    <Copy size={15} />
+                  </button>
                   <PDFDownloadLink
                     document={<PackReport pack={pack} />}
                     fileName={`alertastock-pack-${pack.code || pack.name.toLowerCase().replace(/[^a-z0-9]+/gi, "-")}.pdf`}
@@ -424,8 +443,8 @@ export function PackManager() {
       </section>
       {showCreate && (
         <Modal
-          title="Crear pack de almacenamiento"
-          onClose={() => setShowCreate(false)}
+          title={duplicateSource ? `Duplicar pack: ${duplicateSource.name}` : "Crear pack de almacenamiento"}
+          onClose={() => { setShowCreate(false); setDuplicateSource(null); }}
         >
           <form onSubmit={createPack} className="space-y-4">
             <label className="block text-sm font-semibold">
@@ -434,6 +453,7 @@ export function PackManager() {
                 name="name"
                 required
                 placeholder="Ej. Caja 01 - Conservas"
+                defaultValue={duplicateSource ? `${duplicateSource.name} copia` : ""}
                 className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-500"
               />
             </label>
@@ -444,6 +464,7 @@ export function PackManager() {
                   name="code"
                   required
                   placeholder="C-001"
+                defaultValue={duplicateSource ? `${duplicateSource.code}-2` : ""}
                   className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none"
                 />
               </label>
@@ -453,6 +474,7 @@ export function PackManager() {
                   name="location"
                   required
                   placeholder="Estantería A"
+                defaultValue={duplicateSource?.location ?? ""}
                   className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none"
                 />
               </label>
@@ -463,15 +485,15 @@ export function PackManager() {
                 name="expiresAt"
                 type="date"
                 required
+                defaultValue={duplicateSource?.expiresAt ?? ""}
                 className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none"
               />
             </label>
             <p className="rounded-lg bg-emerald-50 p-3 text-xs leading-5 text-emerald-800">
-              Crear el pack no resta existencias. Solo asigna código, ubicación
-              y una fecha común para organizarlo.
+              {duplicateSource ? "Se ha copiado el contenido del pack. Revisa el nombre, código, ubicación y caducidad antes de guardarlo." : "Crear el pack no resta existencias. Solo asigna código, ubicación y una fecha común para organizarlo."}
             </p>
             <button className="h-11 w-full rounded-xl bg-emerald-600 text-sm font-bold text-white">
-              Crear caja
+              {duplicateSource ? "Guardar pack duplicado" : "Crear caja"}
             </button>
           </form>
         </Modal>
@@ -539,40 +561,37 @@ function Modal({
 }
 
 const packPdfStyles = StyleSheet.create({
-  page: { padding: 36, fontSize: 10, color: "#172033" },
-  title: { fontSize: 22, marginBottom: 6, fontWeight: 700 },
-  subtitle: { fontSize: 10, color: "#64748b", marginBottom: 18 },
-  metadata: { border: "1 solid #dbe4d2", borderRadius: 5, padding: 10, marginBottom: 16 },
-  metadataLine: { marginBottom: 4 },
-  sectionTitle: { fontSize: 13, fontWeight: 700, color: "#365314", marginBottom: 8 },
-  row: { border: "1 solid #e2e8f0", borderRadius: 5, padding: 8, marginBottom: 6 },
-  food: { fontSize: 11, fontWeight: 700, marginBottom: 3 },
-  detail: { color: "#475569", marginBottom: 3 },
-  footer: { position: "absolute", bottom: 24, left: 36, right: 36, fontSize: 8, color: "#94a3b8", textAlign: "center" },
+  page: { padding: 24, fontSize: 8, color: "#172033" },
+  title: { fontSize: 17, marginBottom: 3, fontWeight: 700 },
+  subtitle: { fontSize: 8, color: "#64748b", marginBottom: 8 },
+  metadata: { border: "1 solid #dbe4d2", borderRadius: 4, padding: 6, marginBottom: 8 },
+  metadataLine: { marginBottom: 2 },
+  sectionTitle: { fontSize: 10, fontWeight: 700, color: "#365314", marginBottom: 5 },
+  columns: { flexDirection: "row", gap: 7 },
+  column: { flex: 1 },
+  row: { border: "1 solid #e2e8f0", borderRadius: 3, padding: 4, marginBottom: 4 },
+  food: { fontSize: 8, fontWeight: 700, marginBottom: 2 },
+  detail: { fontSize: 7, color: "#475569", marginBottom: 1 },
+  footer: { position: "absolute", bottom: 12, left: 24, right: 24, fontSize: 6, color: "#94a3b8", textAlign: "center" },
 });
 
 function PackReport({ pack }: { pack: Pack }) {
+  const columnCount = 3;
+  const perColumn = Math.ceil(pack.items.length / columnCount);
+  const columns = Array.from({ length: columnCount }, (_, index) => pack.items.slice(index * perColumn, (index + 1) * perColumn));
   return (
     <Document>
-      <Page size="A4" style={packPdfStyles.page}>
+      <Page size="A4" orientation="landscape" wrap={false} style={packPdfStyles.page}>
         <Text style={packPdfStyles.title}>AlertaStock · Ficha de pack</Text>
-        <Text style={packPdfStyles.subtitle}>Documento de control físico del contenido de la caja.</Text>
+        <Text style={packPdfStyles.subtitle}>Contenido físico de la caja · generado el {new Date().toLocaleDateString("es-ES")}</Text>
         <View style={packPdfStyles.metadata}>
-          <Text style={packPdfStyles.metadataLine}>Pack: {pack.name}</Text>
-          <Text style={packPdfStyles.metadataLine}>Código: {pack.code || "Sin código"}</Text>
-          <Text style={packPdfStyles.metadataLine}>Ubicación: {pack.location || "Sin ubicación"}</Text>
-          <Text>Caducidad común: {pack.expiresAt ? new Date(`${pack.expiresAt}T00:00:00`).toLocaleDateString("es-ES") : "Sin fecha"}</Text>
+          <Text style={packPdfStyles.metadataLine}>Pack: {pack.name} · Código: {pack.code || "Sin código"} · Ubicación: {pack.location || "Sin ubicación"}</Text>
+          <Text>Caducidad común: {pack.expiresAt ? new Date(`${pack.expiresAt}T00:00:00`).toLocaleDateString("es-ES") : "Sin fecha"} · {pack.items.length} lotes</Text>
         </View>
-        <Text style={packPdfStyles.sectionTitle}>Contenido · {pack.items.length} lotes</Text>
-        {pack.items.map((item, index) => (
-          <View key={`${item.purchaseId}-${index}`} style={packPdfStyles.row}>
-            <Text style={packPdfStyles.food}>{item.name}</Text>
-            <Text style={packPdfStyles.detail}>Tipo / detalle: {item.detail || "Sin detalle"}</Text>
-            <Text style={packPdfStyles.detail}>Categoría: {item.category || "Sin categoría"}</Text>
-            <Text style={packPdfStyles.detail}>Cantidad: {item.quantity} {item.unit}</Text>
-            <Text>Caducidad del artículo: {new Date(`${item.expiresAt}T00:00:00`).toLocaleDateString("es-ES")}</Text>
-          </View>
-        ))}
+        <Text style={packPdfStyles.sectionTitle}>Contenido</Text>
+        <View style={packPdfStyles.columns}>
+          {columns.map((column, columnIndex) => <View key={columnIndex} style={packPdfStyles.column}>{column.map((item, index) => <View key={`${item.purchaseId}-${index}`} style={packPdfStyles.row}><Text style={packPdfStyles.food}>{item.name}</Text><Text style={packPdfStyles.detail}>Categoría: {item.category || "Sin categoría"}</Text><Text style={packPdfStyles.detail}>Tipo: {item.detail || "Sin detalle"} · Cantidad: {item.quantity} {item.unit}</Text><Text style={packPdfStyles.detail}>Caduca: {new Date(`${item.expiresAt}T00:00:00`).toLocaleDateString("es-ES")}</Text></View>)}</View>)}
+        </View>
         <Text style={packPdfStyles.footer}>AlertaStock · ficha imprimible de almacenamiento</Text>
       </Page>
     </Document>

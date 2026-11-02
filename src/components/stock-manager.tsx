@@ -24,6 +24,7 @@ type Purchase = {
   quantity: number;
   unit: string;
   expiresAt: string;
+  packs?: { id: string; name: string; code?: string | null; location?: string | null }[];
 };
 const key = "reservaclara-stock-v1";
 
@@ -361,6 +362,7 @@ export function StockManager() {
                     "es-ES",
                   )}
                 </p>
+                {item.packs?.length ? <p className="mt-1 text-xs font-medium text-blue-700">En pack: {item.packs.map((pack) => `${pack.name}${pack.code ? ` (${pack.code})` : ""}${pack.location ? ` · ${pack.location}` : ""}`).join(" · ")}</p> : <p className="mt-1 text-xs text-slate-400">Sin pack asignado</p>}
               </div>
               <div className="flex items-center gap-2"><button onClick={() => setShowPurchaseEdit(item)} aria-label={`Editar lote de ${item.name}`} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-800"><Pencil size={15} /></button><button onClick={() => setShowSplit(item)} aria-label={`Dividir lote de ${item.name}`} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-700"><Scissors size={14} />Dividir</button><button onClick={() => consume(item)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:border-amber-300 hover:text-amber-700"><Minus size={14} />Consumir 1</button></div>
             </div>
