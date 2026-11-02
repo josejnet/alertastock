@@ -27,6 +27,7 @@ type Purchase = {
   quantity: number;
   unit: string;
   expiresAt: string;
+  packs?: { id: string; name: string; code?: string | null; location?: string | null }[];
 };
 type PackLine = {
   purchaseId: string;
@@ -266,6 +267,11 @@ export function PackManager() {
                 (sum, purchase) => sum + purchase.quantity - (selected[purchase.id] ?? 0),
                 0,
               );
+              const packedQuantity = foodPurchases.reduce((sum, purchase) => {
+                const related = purchase.packs?.length ? purchase.packs : packByPurchase.get(purchase.id) ?? [];
+                return sum + (related.length ? purchase.quantity - (selected[purchase.id] ?? 0) : 0);
+              }, 0);
+              const freeQuantity = Math.max(available - packedQuantity, 0);
               const inPacks = foodPurchases.flatMap(
                 (purchase) => packByPurchase.get(purchase.id) ?? [],
               );
@@ -286,7 +292,7 @@ export function PackManager() {
                       {food.name}
                     </p>
                     <p className="truncate text-xs text-slate-400">
-                      {food.category} · disponible: {available} {food.unit}
+                      {food.category} · stock total: {available} {food.unit} · libre: {freeQuantity} · en packs: {packedQuantity}
                     </p>
                     {inPacks.length > 0 && (
                       <p className="mt-1 truncate text-[11px] font-medium text-blue-600">
@@ -295,7 +301,7 @@ export function PackManager() {
                     )}
                   </div>
                   <div className="flex min-w-[280px] flex-col gap-2">
-                    {detailGroups.length ? detailGroups.map(([groupKey, group]) => { const groupAvailable = group.reduce((sum, purchase) => sum + purchase.quantity - (selected[purchase.id] ?? 0), 0); return <div key={groupKey} className="rounded-xl border border-slate-100 bg-slate-50 p-2"><div className="mb-1 flex items-center justify-between gap-2"><p className="truncate text-[11px] font-semibold text-slate-700">{group[0].detail?.trim() || "Sin detalle"}</p><span className="shrink-0 text-[10px] text-slate-400">{groupAvailable} {group[0].unit} disponibles · {group.length} {group.length === 1 ? "lote" : "lotes"}</span></div><div className="space-y-1">{group.map((purchase) => { const remaining = purchase.quantity - (selected[purchase.id] ?? 0); return <div key={purchase.id} className="flex items-center justify-between gap-2 rounded-lg border border-white bg-white px-2 py-1.5"><p className="text-[10px] text-slate-500">{remaining} {purchase.unit} disponibles · caduca {new Date(`${purchase.expiresAt}T00:00:00`).toLocaleDateString("es-ES")}</p><button onClick={() => addPurchase(purchase)} disabled={remaining <= 0} title="Añadir lote" className="shrink-0 rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400">{remaining > 0 ? "Añadir 1" : "Completo"}</button></div>; })}</div></div>; }) : <span className="text-xs text-slate-400">Sin lotes comprados</span>}
+                    {detailGroups.length ? detailGroups.map(([groupKey, group]) => { const groupAvailable = group.reduce((sum, purchase) => sum + purchase.quantity - (selected[purchase.id] ?? 0), 0); const groupPacked = group.reduce((sum, purchase) => { const related = purchase.packs?.length ? purchase.packs : packByPurchase.get(purchase.id) ?? []; return sum + (related.length ? purchase.quantity - (selected[purchase.id] ?? 0) : 0); }, 0); const groupFree = Math.max(groupAvailable - groupPacked, 0); return <div key={groupKey} className="rounded-xl border border-slate-100 bg-slate-50 p-2"><div className="mb-1 flex items-center justify-between gap-2"><p className="truncate text-[11px] font-semibold text-slate-700">{group[0].detail?.trim() || "Sin detalle"}</p><span className="shrink-0 text-[10px] text-slate-400">{groupAvailable} {group[0].unit} · libre {groupFree} · en packs {groupPacked}</span></div><div className="space-y-1">{group.map((purchase) => { const remaining = purchase.quantity - (selected[purchase.id] ?? 0); const relatedPacks = purchase.packs?.length ? purchase.packs : (packByPurchase.get(purchase.id) ?? []).map((name) => ({ name })); const packLabel = relatedPacks.length ? `En ${relatedPacks.map((pack) => pack.name).join(", ")}` : "Sin pack"; return <div key={purchase.id} className="flex items-center justify-between gap-2 rounded-lg border border-white bg-white px-2 py-1.5"><p className="min-w-0 truncate text-[10px] text-slate-500">{remaining} {purchase.unit} · {packLabel} · caduca {new Date(`${purchase.expiresAt}T00:00:00`).toLocaleDateString("es-ES")}</p><button onClick={() => addPurchase(purchase)} disabled={remaining <= 0} title={relatedPacks.length ? "Añadir este lote a otro pack" : "Añadir lote"} className="shrink-0 rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400">{remaining > 0 ? (relatedPacks.length ? "Añadir otra" : "Añadir 1") : "Completo"}</button></div>; })}</div></div>; }) : <span className="text-xs text-slate-400">Sin lotes comprados</span>}
                   </div>
                 </div>
               );
