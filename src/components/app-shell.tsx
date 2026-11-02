@@ -56,7 +56,12 @@ export function AppShell({ section }: { section: string }) {
   const router = useRouter();
   useEffect(() => {
     const migrationKey = "reservaclara-db-migrated-v1";
-    if (localStorage.getItem(migrationKey)) return;
+    const migrationInFlightKey = "reservaclara-db-migration-in-flight-v1";
+    if (
+      localStorage.getItem(migrationKey) ||
+      sessionStorage.getItem(migrationInFlightKey)
+    )
+      return;
     const stock = JSON.parse(localStorage.getItem("reservaclara-stock-v1") ?? "{}");
     const packs = JSON.parse(localStorage.getItem("reservaclara-packs-v1") ?? "[]");
     const members = JSON.parse(localStorage.getItem("reservaclara-household-v1") ?? "[]");
@@ -64,7 +69,9 @@ export function AppShell({ section }: { section: string }) {
     const snapshot = { planned: stock.planned ?? [], purchases: stock.purchases ?? [], packs, members, nutrition };
     const hasLocalData = snapshot.planned.length || snapshot.purchases.length || snapshot.packs.length || snapshot.members.length;
     if (!hasLocalData) return;
+    sessionStorage.setItem(migrationInFlightKey, "1");
     fetch("/api/workspace").then((response) => { if (!response.ok) return null; return fetch("/api/workspace", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "importSnapshot", snapshot }) }); }).then((response) => { if (!response?.ok) return; localStorage.setItem(migrationKey, "1"); window.location.reload(); }).catch(() => undefined);
+    return () => sessionStorage.removeItem(migrationInFlightKey);
   }, []);
   async function logout() {
     await fetch("/api/auth/logout", { method: "POST" });

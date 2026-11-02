@@ -659,6 +659,19 @@ export async function POST(request: Request) {
             },
           });
           if (!planned) continue;
+          // Keep the browser snapshot import idempotent. The legacy migration
+          // can be triggered by more than one open tab at the same time, so a
+          // stable source marker is stored on each imported item.
+          const sourceKey = `snapshot:${String(
+            row.id ?? `${name}|${row.detail ?? ""}|${quantity}|${expiresAt}`,
+          )}`;
+          const alreadyImported = await tx.item.findFirst({
+            where: { userId: user.id, notes: sourceKey },
+          });
+          if (alreadyImported) {
+            itemIds.set(String(row.id ?? sourceKey), alreadyImported.id);
+            continue;
+          }
           const item = await tx.item.create({
             data: {
               userId: user.id,
@@ -669,6 +682,7 @@ export async function POST(request: Request) {
               unit: planned.unit,
               purchaseDate: new Date(),
               expiresAt: new Date(`${expiresAt}T00:00:00`),
+              notes: sourceKey,
             },
           });
           await tx.stockMovement.create({
