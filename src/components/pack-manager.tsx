@@ -567,7 +567,7 @@ const packPdfStyles = StyleSheet.create({
   metadata: { border: "1 solid #dbe4d2", borderRadius: 4, padding: 6, marginBottom: 8 },
   metadataLine: { marginBottom: 2 },
   sectionTitle: { fontSize: 10, fontWeight: 700, color: "#365314", marginBottom: 5 },
-  columns: { flexDirection: "row", gap: 7 },
+  columns: { flexDirection: "row", gap: 8 },
   column: { flex: 1 },
   row: { border: "1 solid #e2e8f0", borderRadius: 3, padding: 4, marginBottom: 4 },
   food: { fontSize: 8, fontWeight: 700, marginBottom: 2 },
@@ -576,12 +576,12 @@ const packPdfStyles = StyleSheet.create({
 });
 
 function PackReport({ pack }: { pack: Pack }) {
-  const columnCount = 3;
+  const columnCount = 2;
   const perColumn = Math.ceil(pack.items.length / columnCount);
   const columns = Array.from({ length: columnCount }, (_, index) => pack.items.slice(index * perColumn, (index + 1) * perColumn));
   return (
     <Document>
-      <Page size="A4" orientation="landscape" wrap={false} style={packPdfStyles.page}>
+      <Page size="A4" wrap={false} style={packPdfStyles.page}>
         <Text style={packPdfStyles.title}>AlertaStock · Ficha de pack</Text>
         <Text style={packPdfStyles.subtitle}>Contenido físico de la caja · generado el {new Date().toLocaleDateString("es-ES")}</Text>
         <View style={packPdfStyles.metadata}>
