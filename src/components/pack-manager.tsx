@@ -252,7 +252,7 @@ export function PackManager() {
                 (purchase) => purchase.name === food.name,
               );
               const available = foodPurchases.reduce(
-                (sum, purchase) => sum + purchase.quantity,
+                (sum, purchase) => sum + purchase.quantity - (selected[purchase.id] ?? 0),
                 0,
               );
               const inPacks = foodPurchases.flatMap(
@@ -284,7 +284,7 @@ export function PackManager() {
                     )}
                   </div>
                   <div className="flex min-w-[280px] flex-col gap-2">
-                    {detailGroups.length ? detailGroups.map(([groupKey, group]) => <div key={groupKey} className="rounded-xl border border-slate-100 bg-slate-50 p-2"><div className="mb-1 flex items-center justify-between gap-2"><p className="truncate text-[11px] font-semibold text-slate-700">{group[0].detail?.trim() || "Sin detalle"}</p><span className="shrink-0 text-[10px] text-slate-400">{group.reduce((sum, purchase) => sum + purchase.quantity, 0)} {group[0].unit} · {group.length} {group.length === 1 ? "lote" : "lotes"}</span></div><div className="space-y-1">{group.map((purchase) => <div key={purchase.id} className="flex items-center justify-between gap-2 rounded-lg border border-white bg-white px-2 py-1.5"><p className="text-[10px] text-slate-500">{purchase.quantity} {purchase.unit} · caduca {new Date(`${purchase.expiresAt}T00:00:00`).toLocaleDateString("es-ES")}</p><button onClick={() => addPurchase(purchase)} disabled={(selected[purchase.id] ?? 0) >= purchase.quantity} className="shrink-0 rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 disabled:opacity-40">Añadir lote</button></div>)}</div></div>) : <span className="text-xs text-slate-400">Sin lotes comprados</span>}
+                    {detailGroups.length ? detailGroups.map(([groupKey, group]) => { const groupAvailable = group.reduce((sum, purchase) => sum + purchase.quantity - (selected[purchase.id] ?? 0), 0); return <div key={groupKey} className="rounded-xl border border-slate-100 bg-slate-50 p-2"><div className="mb-1 flex items-center justify-between gap-2"><p className="truncate text-[11px] font-semibold text-slate-700">{group[0].detail?.trim() || "Sin detalle"}</p><span className="shrink-0 text-[10px] text-slate-400">{groupAvailable} {group[0].unit} disponibles · {group.length} {group.length === 1 ? "lote" : "lotes"}</span></div><div className="space-y-1">{group.map((purchase) => { const remaining = purchase.quantity - (selected[purchase.id] ?? 0); return <div key={purchase.id} className="flex items-center justify-between gap-2 rounded-lg border border-white bg-white px-2 py-1.5"><p className="text-[10px] text-slate-500">{remaining} {purchase.unit} disponibles · caduca {new Date(`${purchase.expiresAt}T00:00:00`).toLocaleDateString("es-ES")}</p><button onClick={() => addPurchase(purchase)} disabled={remaining <= 0} title="Añadir lote" className="shrink-0 rounded-md bg-emerald-50 px-2 py-1 text-[10px] font-bold text-emerald-700 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400">{remaining > 0 ? "Añadir 1" : "Completo"}</button></div>; })}</div></div>; }) : <span className="text-xs text-slate-400">Sin lotes comprados</span>}
                   </div>
                 </div>
               );
