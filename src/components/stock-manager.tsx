@@ -9,6 +9,7 @@ import {
   Pencil,
   Plus,
   Scissors,
+  Search,
   Trash2,
   X,
 } from "lucide-react";
@@ -34,6 +35,7 @@ export function StockManager() {
   const [showSplit, setShowSplit] = useState<Purchase | null>(null);
   const [showEdit, setShowEdit] = useState<Planned | null>(null);
   const [showAdd, setShowAdd] = useState(false);
+  const [query, setQuery] = useState("");
   const [notice, setNotice] = useState("");
   useEffect(() => {
     const saved = localStorage.getItem(key);
@@ -72,6 +74,13 @@ export function StockManager() {
   const pending = (item: Planned) =>
     Math.max(item.plannedQuantity - (purchasedByName[item.name] ?? 0), 0);
   const totalPending = planned.reduce((sum, item) => sum + pending(item), 0);
+  const normalizedQuery = query.trim().toLocaleLowerCase("es");
+  const visiblePlanned = planned.filter((item) =>
+    !normalizedQuery || `${item.name} ${item.category}`.toLocaleLowerCase("es").includes(normalizedQuery),
+  );
+  const visiblePurchases = purchases.filter((item) =>
+    !normalizedQuery || `${item.name} ${item.category ?? ""} ${item.detail ?? ""}`.toLocaleLowerCase("es").includes(normalizedQuery),
+  );
   function flash(message: string) {
     setNotice(message);
     window.setTimeout(() => setNotice(""), 2600);
@@ -268,6 +277,17 @@ export function StockManager() {
           Añadir al objetivo
         </button>
       </div>
+      <div className="relative mt-4 max-w-xl">
+        <Search className="pointer-events-none absolute left-3 top-3 text-slate-400" size={17} />
+        <input
+          value={query}
+          onChange={(event) => setQuery(event.target.value)}
+          placeholder="Buscar alimento, categoría o detalle..."
+          aria-label="Buscar en inventario"
+          className="h-11 w-full rounded-xl border border-slate-200 bg-white pl-10 pr-10 text-sm outline-none transition focus:border-emerald-500 focus:ring-2 focus:ring-emerald-100"
+        />
+        {query && <button type="button" onClick={() => setQuery("")} aria-label="Limpiar búsqueda" className="absolute right-2 top-2 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-800"><X size={16} /></button>}
+      </div>
       <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200 bg-white">
         <div className="hidden grid-cols-[1.5fr_1fr_1fr_1fr_auto] gap-4 border-b border-slate-100 bg-slate-50 px-5 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 sm:grid">
           <span>Alimento</span>
@@ -276,7 +296,7 @@ export function StockManager() {
           <span>Pendiente</span>
           <span />
         </div>
-        {planned.map((item) => (
+        {visiblePlanned.map((item) => (
           <div
             key={item.id}
             className="grid gap-3 border-b border-slate-100 px-5 py-4 last:border-0 sm:grid-cols-[1.5fr_1fr_1fr_1fr_auto] sm:items-center sm:gap-4"
@@ -315,9 +335,9 @@ export function StockManager() {
             </div>
           </div>
         ))}
-        {planned.length === 0 && (
+        {visiblePlanned.length === 0 && (
           <div className="p-10 text-center text-sm text-slate-500">
-            No hay stock planificado. Añade una línea para empezar.
+            {query ? "No hay alimentos que coincidan con la búsqueda." : "No hay stock planificado. Añade una línea para empezar."}
           </div>
         )}
       </div>
@@ -327,7 +347,7 @@ export function StockManager() {
           Cada lote exige fecha de caducidad y puede consumirse por separado.
         </p>
         <div className="mt-4 grid gap-3 md:grid-cols-2">
-          {purchases.map((item) => (
+          {visiblePurchases.map((item) => (
             <div
               key={item.id}
               className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4"
@@ -345,10 +365,9 @@ export function StockManager() {
               <div className="flex items-center gap-2"><button onClick={() => setShowPurchaseEdit(item)} aria-label={`Editar lote de ${item.name}`} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-800"><Pencil size={15} /></button><button onClick={() => setShowSplit(item)} aria-label={`Dividir lote de ${item.name}`} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-700"><Scissors size={14} />Dividir</button><button onClick={() => consume(item)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:border-amber-300 hover:text-amber-700"><Minus size={14} />Consumir 1</button></div>
             </div>
           ))}
-          {purchases.length === 0 && (
+          {visiblePurchases.length === 0 && (
             <div className="rounded-2xl border border-dashed border-slate-300 bg-white p-8 text-center text-sm text-slate-500 md:col-span-2">
-              Todavía no hay compras registradas. Usa «Comprar» en una línea del
-              objetivo.
+              {query ? "No hay lotes que coincidan con la búsqueda." : <>Todavía no hay compras registradas. Usa «Comprar» en una línea del objetivo.</>}
             </div>
           )}
         </div>
