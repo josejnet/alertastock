@@ -128,7 +128,7 @@ export async function GET() {
         }),
         db.pack.findMany({
           where: { userId: user.id },
-          include: { items: { include: { item: true } } },
+          include: { items: { include: { item: { include: { category: true } } } } },
           orderBy: { createdAt: "desc" },
         }),
         db.householdMember.findMany({
@@ -167,6 +167,7 @@ export async function GET() {
           purchaseId: line.itemId,
           name: line.item.name,
           detail: line.item.detail,
+          category: line.item.category?.name ?? null,
           quantity: decimal(line.quantity),
           unit: line.item.unit,
           expiresAt: line.item.expiresAt.toISOString().slice(0, 10),
@@ -382,9 +383,41 @@ export async function POST(request: Request) {
       const planned = await db.plannedStock.findFirst({ where: { userId: user.id, name: item.name, active: true } });
       if (!planned) return NextResponse.json({ error: "Planned stock not found" }, { status: 400 });
       const others = await db.item.aggregate({ where: { userId: user.id, name: item.name, status: "ACTIVE", NOT: { id: item.id } }, _sum: { quantity: true } });
-      if (quantity > Math.max(decimal(planned.plannedQuantity) - decimal(others._sum.quantity), 0)) return NextResponse.json({ error: "Quantity exceeds pending stock objective" }, { status: 400 });
+      const currentQuantity = decimal(item.quantity);
+      const totalAfterUpdate = decimal(others._sum.quantity) + quantity;
+      if (quantity > currentQuantity && totalAfterUpdate > decimal(planned.plannedQuantity)) return NextResponse.json({ error: "Quantity exceeds pending stock objective" }, { status: 400 });
       const updated = await db.item.update({ where: { id: item.id }, data: { detail, quantity, expiresAt } });
       return NextResponse.json(serializeItem(updated));
+    }
+    if (action === "splitPurchase") {
+      const itemId = String(body.itemId ?? "");
+      const packCount = Math.floor(Number(body.packCount));
+      const quantityPerPack = positiveNumber(body.quantityPerPack);
+      const detailPrefix = String(body.detail ?? "").trim();
+      if (!itemId || packCount < 2 || !quantityPerPack) return NextResponse.json({ error: "Split data incomplete" }, { status: 400 });
+      const item = await db.item.findFirst({ where: { id: itemId, userId: user.id, status: "ACTIVE" }, include: { packItems: true } });
+      if (!item) return NextResponse.json({ error: "Item not found" }, { status: 404 });
+      if (item.packItems.length) return NextResponse.json({ error: "Remove the item from its packs before splitting it" }, { status: 400 });
+      const total = quantityPerPack * packCount;
+      if (Math.abs(total - decimal(item.quantity)) > 0.0001) return NextResponse.json({ error: "The packs must use the complete lot quantity" }, { status: 400 });
+      const children = await db.$transaction(async (tx) => {
+        await tx.item.update({ where: { id: item.id }, data: { status: "DISCARDED", quantity: 0, notes: `Dividido en ${packCount} sublotes` } });
+        return Promise.all(Array.from({ length: packCount }, (_, index) => tx.item.create({
+          data: {
+            userId: user.id,
+            categoryId: item.categoryId,
+            name: item.name,
+            detail: `${detailPrefix || item.detail || "Pack"} ${index + 1}/${packCount}`,
+            quantity: quantityPerPack,
+            unit: item.unit,
+            caloriesPerUnit: item.caloriesPerUnit,
+            purchaseDate: item.purchaseDate,
+            expiresAt: item.expiresAt,
+          },
+          include: { category: true },
+        })));
+      });
+      return NextResponse.json(children.map(serializeItem));
     }
     if (action === "consume") {
       const item = await db.item.findFirst({
@@ -469,7 +502,7 @@ export async function POST(request: Request) {
             ),
           },
         },
-        include: { items: { include: { item: true } } },
+        include: { items: { include: { item: { include: { category: true } } } } },
       }));
       return NextResponse.json(
         {
@@ -483,6 +516,7 @@ export async function POST(request: Request) {
             itemId: line.itemId,
             name: line.item.name,
             detail: line.item.detail,
+            category: line.item.category?.name ?? null,
             quantity: decimal(line.quantity),
             unit: line.item.unit,
             expiresAt: line.item.expiresAt.toISOString().slice(0, 10),

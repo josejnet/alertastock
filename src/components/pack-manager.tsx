@@ -5,6 +5,8 @@ import {
   Archive,
   CalendarDays,
   Check,
+  Download,
+  FileText,
   MapPin,
   PackagePlus,
   Search,
@@ -12,6 +14,7 @@ import {
   Trash2,
   X,
 } from "lucide-react";
+import { Document, Page, PDFDownloadLink, StyleSheet, Text, View } from "@react-pdf/renderer";
 import { initialCatalog, isEquipmentItem, isEquipmentName, type CatalogItem } from "@/lib/catalog";
 
 type Planned = CatalogItem & { id: string };
@@ -28,6 +31,7 @@ type PackLine = {
   purchaseId: string;
   name: string;
   detail?: string | null;
+  category?: string | null;
   quantity: number;
   unit: string;
   expiresAt: string;
@@ -37,7 +41,8 @@ type Pack = {
   name: string;
   code: string;
   location: string;
-  expiresAt: string;
+  expiresAt: string | null;
+  createdAt?: string;
   items: PackLine[];
 };
 type Selected = Record<string, number>;
@@ -371,21 +376,28 @@ export function PackManager() {
                     Código {pack.code} · {pack.location}
                   </p>
                 </div>
-                <button
-                  onClick={() => deletePack(pack)}
-                  aria-label={`Eliminar pack ${pack.name}`}
-                  className="rounded-lg p-1.5 text-slate-300 hover:bg-rose-50 hover:text-rose-600"
-                >
-                  <Trash2 size={15} />
-                </button>
+                <div className="flex items-center gap-1">
+                  <PDFDownloadLink
+                    document={<PackReport pack={pack} />}
+                    fileName={`alertastock-pack-${pack.code || pack.name.toLowerCase().replace(/[^a-z0-9]+/gi, "-")}.pdf`}
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-emerald-50 hover:text-emerald-700"
+                    title="Descargar ficha PDF del pack"
+                  >
+                    {({ loading }) => loading ? <FileText size={15} /> : <Download size={15} />}
+                  </PDFDownloadLink>
+                  <button
+                    onClick={() => deletePack(pack)}
+                    aria-label={`Eliminar pack ${pack.name}`}
+                    className="rounded-lg p-1.5 text-slate-300 hover:bg-rose-50 hover:text-rose-600"
+                  >
+                    <Trash2 size={15} />
+                  </button>
+                </div>
               </div>
               <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-600">
                 <span className="flex items-center gap-1 rounded-full bg-slate-50 px-2 py-1">
                   <CalendarDays size={13} />
-                  Caduca{" "}
-                  {new Date(`${pack.expiresAt}T00:00:00`).toLocaleDateString(
-                    "es-ES",
-                  )}
+                  Caduca {pack.expiresAt ? new Date(`${pack.expiresAt}T00:00:00`).toLocaleDateString("es-ES") : "sin fecha"}
                 </span>
                 <span className="flex items-center gap-1 rounded-full bg-slate-50 px-2 py-1">
                   <Tag size={13} />
@@ -523,5 +535,46 @@ function Modal({
         </button>
       </div>
     </div>
+  );
+}
+
+const packPdfStyles = StyleSheet.create({
+  page: { padding: 36, fontSize: 10, color: "#172033" },
+  title: { fontSize: 22, marginBottom: 6, fontWeight: 700 },
+  subtitle: { fontSize: 10, color: "#64748b", marginBottom: 18 },
+  metadata: { border: "1 solid #dbe4d2", borderRadius: 5, padding: 10, marginBottom: 16 },
+  metadataLine: { marginBottom: 4 },
+  sectionTitle: { fontSize: 13, fontWeight: 700, color: "#365314", marginBottom: 8 },
+  row: { border: "1 solid #e2e8f0", borderRadius: 5, padding: 8, marginBottom: 6 },
+  food: { fontSize: 11, fontWeight: 700, marginBottom: 3 },
+  detail: { color: "#475569", marginBottom: 3 },
+  footer: { position: "absolute", bottom: 24, left: 36, right: 36, fontSize: 8, color: "#94a3b8", textAlign: "center" },
+});
+
+function PackReport({ pack }: { pack: Pack }) {
+  return (
+    <Document>
+      <Page size="A4" style={packPdfStyles.page}>
+        <Text style={packPdfStyles.title}>AlertaStock · Ficha de pack</Text>
+        <Text style={packPdfStyles.subtitle}>Documento de control físico del contenido de la caja.</Text>
+        <View style={packPdfStyles.metadata}>
+          <Text style={packPdfStyles.metadataLine}>Pack: {pack.name}</Text>
+          <Text style={packPdfStyles.metadataLine}>Código: {pack.code || "Sin código"}</Text>
+          <Text style={packPdfStyles.metadataLine}>Ubicación: {pack.location || "Sin ubicación"}</Text>
+          <Text>Caducidad común: {pack.expiresAt ? new Date(`${pack.expiresAt}T00:00:00`).toLocaleDateString("es-ES") : "Sin fecha"}</Text>
+        </View>
+        <Text style={packPdfStyles.sectionTitle}>Contenido · {pack.items.length} lotes</Text>
+        {pack.items.map((item, index) => (
+          <View key={`${item.purchaseId}-${index}`} style={packPdfStyles.row}>
+            <Text style={packPdfStyles.food}>{item.name}</Text>
+            <Text style={packPdfStyles.detail}>Tipo / detalle: {item.detail || "Sin detalle"}</Text>
+            <Text style={packPdfStyles.detail}>Categoría: {item.category || "Sin categoría"}</Text>
+            <Text style={packPdfStyles.detail}>Cantidad: {item.quantity} {item.unit}</Text>
+            <Text>Caducidad del artículo: {new Date(`${item.expiresAt}T00:00:00`).toLocaleDateString("es-ES")}</Text>
+          </View>
+        ))}
+        <Text style={packPdfStyles.footer}>AlertaStock · ficha imprimible de almacenamiento</Text>
+      </Page>
+    </Document>
   );
 }

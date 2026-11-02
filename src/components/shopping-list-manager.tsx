@@ -177,6 +177,7 @@ export function ShoppingListManager() {
         shoppingItemId,
       }),
     }).catch(() => null);
+    if (response && !response.ok) return flash("No se pudo registrar la compra");
     const serverItem = response?.ok ? await response.json() : null;
     setPurchases((current) => [
       ...current,

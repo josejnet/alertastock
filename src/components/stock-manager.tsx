@@ -8,6 +8,7 @@ import {
   PackagePlus,
   Pencil,
   Plus,
+  Scissors,
   Trash2,
   X,
 } from "lucide-react";
@@ -30,6 +31,7 @@ export function StockManager() {
   const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [showPurchase, setShowPurchase] = useState<CatalogItem | null>(null);
   const [showPurchaseEdit, setShowPurchaseEdit] = useState<Purchase | null>(null);
+  const [showSplit, setShowSplit] = useState<Purchase | null>(null);
   const [showEdit, setShowEdit] = useState<Planned | null>(null);
   const [showAdd, setShowAdd] = useState(false);
   const [notice, setNotice] = useState("");
@@ -98,6 +100,7 @@ export function StockManager() {
           }),
         }).catch(() => null)
       : null;
+    if (response && !response.ok) return flash("No se pudo registrar la compra");
     const serverItem = response?.ok ? await response.json() : null;
     setPurchases((current) => [
       ...current,
@@ -214,6 +217,26 @@ export function StockManager() {
     setShowPurchaseEdit(null);
     flash(`${showPurchaseEdit.name} actualizado`);
   }
+  async function splitPurchase(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!showSplit) return;
+    const form = new FormData(event.currentTarget);
+    const packCount = Math.floor(Number(form.get("packCount")));
+    const quantityPerPack = Number(form.get("quantityPerPack"));
+    const detail = String(form.get("detail") ?? "").trim();
+    if (packCount < 2 || !quantityPerPack || Math.abs(packCount * quantityPerPack - showSplit.quantity) > 0.0001) {
+      return flash(`La división debe usar exactamente ${showSplit.quantity} ${showSplit.unit}`);
+    }
+    const response = await fetch("/api/workspace", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ action: "splitPurchase", itemId: showSplit.id, packCount, quantityPerPack, detail }) }).catch(() => null);
+    if (!response?.ok) {
+      const result = response ? await response.json().catch(() => null) : null;
+      return flash(result?.error ?? "No se pudo dividir el lote");
+    }
+    const children = await response.json();
+    setPurchases((current) => [...current.filter((item) => item.id !== showSplit.id), ...children]);
+    setShowSplit(null);
+    flash(`${showSplit.name} dividido en ${packCount} sublotes`);
+  }
   return (
     <div>
       <div className="grid gap-4 sm:grid-cols-3">
@@ -319,7 +342,7 @@ export function StockManager() {
                   )}
                 </p>
               </div>
-              <div className="flex items-center gap-2"><button onClick={() => setShowPurchaseEdit(item)} aria-label={`Editar lote de ${item.name}`} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-800"><Pencil size={15} /></button><button onClick={() => consume(item)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:border-amber-300 hover:text-amber-700"><Minus size={14} />Consumir 1</button></div>
+              <div className="flex items-center gap-2"><button onClick={() => setShowPurchaseEdit(item)} aria-label={`Editar lote de ${item.name}`} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-800"><Pencil size={15} /></button><button onClick={() => setShowSplit(item)} aria-label={`Dividir lote de ${item.name}`} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:border-blue-300 hover:text-blue-700"><Scissors size={14} />Dividir</button><button onClick={() => consume(item)} className="flex items-center gap-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs font-bold text-slate-600 hover:border-amber-300 hover:text-amber-700"><Minus size={14} />Consumir 1</button></div>
             </div>
           ))}
           {purchases.length === 0 && (
@@ -436,6 +459,17 @@ export function StockManager() {
             <label className="block text-sm font-semibold">Detalle opcional<input name="detail" defaultValue={showPurchaseEdit.detail ?? ""} placeholder="Ej. macarrones, fideos, bote de 500 g" className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-500" /></label>
             <label className="block text-sm font-semibold">Fecha de caducidad<input name="expiresAt" type="date" defaultValue={showPurchaseEdit.expiresAt} required className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-500" /></label>
             <button className="h-11 w-full rounded-xl bg-slate-900 text-sm font-bold text-white">Guardar lote</button>
+          </form>
+        </Modal>
+      )}
+      {showSplit && (
+        <Modal title={`Dividir lote: ${showSplit.name}`} onClose={() => setShowSplit(null)}>
+          <form onSubmit={splitPurchase} className="space-y-4">
+            <p className="rounded-lg bg-blue-50 p-3 text-xs leading-5 text-blue-800">Lote actual: <strong>{showSplit.quantity} {showSplit.unit}</strong>. La suma de los sublotes debe coincidir exactamente.</p>
+            <label className="block text-sm font-semibold">Número de packs<input name="packCount" type="number" min="2" step="1" defaultValue="3" required className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-500" /></label>
+            <label className="block text-sm font-semibold">Cantidad por pack<input name="quantityPerPack" type="number" min="0.01" step="0.01" defaultValue={showSplit.quantity / 3} required className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-500" /><span className="mt-1 block text-xs font-normal text-slate-400">Ejemplo: 24 latas → 3 packs de 8.</span></label>
+            <label className="block text-sm font-semibold">Detalle opcional<input name="detail" placeholder="Ej. pack de 8 latas" className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-500" /></label>
+            <button className="flex h-11 w-full items-center justify-center gap-2 rounded-xl bg-slate-900 text-sm font-bold text-white"><Scissors size={16} />Dividir lote</button>
           </form>
         </Modal>
       )}
