@@ -531,6 +531,72 @@ export async function POST(request: Request) {
       });
       return NextResponse.json({ ok: true });
     }
+    if (action === "updatePack") {
+      const packId = String(body.id ?? "");
+      const name = String(body.name ?? "").trim();
+      const code = String(body.code ?? "").trim();
+      const location = String(body.location ?? "").trim();
+      const lines = Array.isArray(body.items) ? body.items : [];
+      if (!packId || !name || !code || !location || !lines.length) {
+        return NextResponse.json({ error: "Pack data incomplete" }, { status: 400 });
+      }
+      const itemIds = lines.map((line: { itemId?: string; purchaseId?: string }) => String(line.itemId ?? line.purchaseId));
+      if (new Set(itemIds).size !== itemIds.length || itemIds.some((id: string) => !id)) {
+        return NextResponse.json({ error: "Invalid pack lines" }, { status: 400 });
+      }
+      const ownedPack = await db.pack.findFirst({ where: { id: packId, userId: user.id } });
+      if (!ownedPack) return NextResponse.json({ error: "Pack not found" }, { status: 404 });
+      const ownedItems = await db.item.findMany({ where: { userId: user.id, id: { in: itemIds }, status: "ACTIVE" } });
+      if (ownedItems.length !== itemIds.length) return NextResponse.json({ error: "Invalid inventory item" }, { status: 400 });
+      const ownedById = new Map(ownedItems.map((item) => [item.id, decimal(item.quantity)]));
+      if (lines.some((line: { itemId?: string; purchaseId?: string; quantity?: number }) => positiveNumber(line.quantity, 1) > (ownedById.get(String(line.itemId ?? line.purchaseId)) ?? 0))) {
+        return NextResponse.json({ error: "Pack quantity exceeds inventory" }, { status: 400 });
+      }
+      const pack = await db.$transaction(async (tx) => {
+        await tx.packItem.deleteMany({ where: { packId } });
+        return tx.pack.update({
+          where: { id: packId },
+          data: {
+            name,
+            code,
+            location,
+            expiresAt: body.expiresAt ? new Date(`${String(body.expiresAt)}T00:00:00`) : null,
+            items: {
+              create: lines.map((line: { itemId?: string; purchaseId?: string; quantity?: number }) => ({
+                itemId: String(line.itemId ?? line.purchaseId),
+                quantity: Number(line.quantity ?? 1),
+              })),
+            },
+          },
+          include: { items: { include: { item: { include: { category: true } } } } },
+        });
+      });
+      return NextResponse.json({
+        id: pack.id,
+        name: pack.name,
+        code: pack.code,
+        location: pack.location,
+        expiresAt: pack.expiresAt?.toISOString().slice(0, 10) ?? null,
+        items: pack.items.map((line) => ({
+          purchaseId: line.itemId,
+          itemId: line.itemId,
+          name: line.item.name,
+          detail: line.item.detail,
+          category: line.item.category?.name ?? null,
+          quantity: decimal(line.quantity),
+          unit: line.item.unit,
+          expiresAt: line.item.expiresAt.toISOString().slice(0, 10),
+        })),
+      });
+    }
+    if (action === "removePackItem") {
+      const packId = String(body.packId ?? "");
+      const itemId = String(body.itemId ?? "");
+      const owned = await db.packItem.findFirst({ where: { packId, itemId, pack: { userId: user.id } } });
+      if (!owned) return NextResponse.json({ error: "Pack item not found" }, { status: 404 });
+      await db.packItem.delete({ where: { id: owned.id } });
+      return NextResponse.json({ ok: true });
+    }
     if (action === "importPurchases") {
       const plannedRows = Array.isArray(body.planned) ? body.planned : [];
       const purchaseRows = Array.isArray(body.purchases) ? body.purchases : [];

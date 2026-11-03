@@ -61,6 +61,8 @@ export function PackManager() {
   const [category, setCategory] = useState("Todas");
   const [showCreate, setShowCreate] = useState(false);
   const [duplicateSource, setDuplicateSource] = useState<Pack | null>(null);
+  const [editSource, setEditSource] = useState<Pack | null>(null);
+  const [onlyUnassigned, setOnlyUnassigned] = useState(false);
   const [notice, setNotice] = useState("");
   useEffect(() => {
     const stock = JSON.parse(localStorage.getItem(stockKey) ?? "{}");
@@ -158,7 +160,8 @@ export function PackManager() {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        action: "createPack",
+        action: editSource ? "updatePack" : "createPack",
+        ...(editSource ? { id: editSource.id } : {}),
         name,
         code,
         location,
@@ -175,12 +178,16 @@ export function PackManager() {
       expiresAt,
       items,
     };
-    const nextPacks = [...packs, nextPack];
+    const nextPacks = editSource
+      ? packs.map((pack) => (pack.id === editSource.id ? nextPack : pack))
+      : [...packs, nextPack];
     setPacks(nextPacks);
     localStorage.setItem(packsKey, JSON.stringify(nextPacks));
     setSelected({});
     setShowCreate(false);
-    flash(`Pack ${name} creado sin modificar el stock`);
+    setDuplicateSource(null);
+    setEditSource(null);
+    flash(editSource ? `Pack ${name} actualizado` : `Pack ${name} creado sin modificar el stock`);
   }
   async function deletePack(pack: Pack) {
     await fetch("/api/workspace", {
@@ -192,6 +199,30 @@ export function PackManager() {
     setPacks(next);
     localStorage.setItem(packsKey, JSON.stringify(next));
     flash(`Pack ${pack.name} eliminado`);
+  }
+  async function removePackItem(pack: Pack, item: PackLine) {
+    if (!window.confirm(`¿Quitar ${item.name} del pack ${pack.name}? El stock no cambiará.`)) return;
+    const response = await fetch("/api/workspace", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "removePackItem", packId: pack.id, itemId: item.purchaseId }),
+    });
+    if (!response.ok) { flash("No se pudo quitar el artículo del pack"); return; }
+    const next = packs.map((candidate) => candidate.id === pack.id
+      ? { ...candidate, items: candidate.items.filter((line) => line.purchaseId !== item.purchaseId) }
+      : candidate);
+    setPacks(next);
+    localStorage.setItem(packsKey, JSON.stringify(next));
+    flash(`${item.name} vuelve a quedar sin ubicación en ese pack`);
+  }
+  function startEdit(pack: Pack) {
+    setSelected(pack.items.reduce<Record<string, number>>((result, item) => {
+      result[item.purchaseId] = item.quantity;
+      return result;
+    }, {}));
+    setDuplicateSource(null);
+    setEditSource(pack);
+    setShowCreate(true);
   }
   function startDuplicate(pack: Pack) {
     setSelected(pack.items.reduce<Record<string, number>>((result, item) => {
@@ -219,12 +250,21 @@ export function PackManager() {
           </p>
         </div>
         <button
-          onClick={() => { setDuplicateSource(null); setShowCreate(true); }}
+          onClick={() => { setDuplicateSource(null); setEditSource(null); setShowCreate(true); }}
           disabled={!selectedCount}
           className="flex w-fit items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2.5 text-sm font-bold text-white shadow-lg shadow-emerald-200 disabled:cursor-not-allowed disabled:opacity-50"
         >
           <PackagePlus size={17} />
           Crear pack {selectedCount ? `(${selectedCount})` : ""}
+        </button>
+      </div>
+      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+        <div>
+          <p className="font-bold">Control de ubicación</p>
+          <p className="text-xs text-amber-800">Los lotes sin pack siguen en tu inventario, pero aún no tienen una caja asignada.</p>
+        </div>
+        <button type="button" onClick={() => setOnlyUnassigned((value) => !value)} className="rounded-lg border border-amber-300 bg-white px-3 py-2 text-xs font-bold hover:bg-amber-100">
+          {onlyUnassigned ? "Ver todos los lotes" : "Mostrar solo sin ubicación"}
         </button>
       </div>
       <div className="grid gap-6 xl:grid-cols-[1.25fr_0.75fr]">
@@ -261,7 +301,7 @@ export function PackManager() {
           <div className="max-h-[620px] divide-y divide-slate-100 overflow-y-auto overscroll-contain">
             {rows.map((food) => {
               const foodPurchases = purchases.filter(
-                (purchase) => purchase.name === food.name,
+                (purchase) => purchase.name === food.name && (!onlyUnassigned || !purchase.packs?.length),
               );
               const available = foodPurchases.reduce(
                 (sum, purchase) => sum + purchase.quantity - (selected[purchase.id] ?? 0),
@@ -395,6 +435,14 @@ export function PackManager() {
                 </div>
                 <div className="flex items-center gap-1">
                   <button
+                    onClick={() => startEdit(pack)}
+                    aria-label={`Editar pack ${pack.name}`}
+                    title="Editar pack"
+                    className="rounded-lg p-1.5 text-slate-400 hover:bg-amber-50 hover:text-amber-700"
+                  >
+                    <Tag size={15} />
+                  </button>
+                  <button
                     onClick={() => startDuplicate(pack)}
                     aria-label={`Duplicar pack ${pack.name}`}
                     title="Duplicar pack"
@@ -433,11 +481,15 @@ export function PackManager() {
                   {pack.location}
                 </span>
               </div>
-              <p className="mt-3 text-xs leading-5 text-slate-500">
-                {pack.items
-                  .map((item) => `${item.name}${item.detail ? ` — ${item.detail}` : ""} (${item.quantity} ${item.unit})`)
-                  .join(" · ")}
-              </p>
+              <div className="mt-3 space-y-1.5">
+                {pack.items.map((item) => (
+                  <div key={item.purchaseId} className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs text-slate-600">
+                    <span className="min-w-0 truncate">{item.name}{item.detail ? ` — ${item.detail}` : ""} · {item.quantity} {item.unit} · caduca {new Date(`${item.expiresAt}T00:00:00`).toLocaleDateString("es-ES")}</span>
+                    <button type="button" onClick={() => removePackItem(pack, item)} aria-label={`Quitar ${item.name} de ${pack.name}`} title="Quitar del pack" className="shrink-0 rounded-md p-1 text-slate-400 hover:bg-white hover:text-rose-600"><X size={14} /></button>
+                  </div>
+                ))}
+                {pack.items.length === 0 && <p className="text-xs text-amber-700">Pack vacío: añade artículos o elimínalo.</p>}
+              </div>
             </div>
           ))}
           {packs.length === 0 && (
@@ -449,8 +501,8 @@ export function PackManager() {
       </section>
       {showCreate && (
         <Modal
-          title={duplicateSource ? `Duplicar pack: ${duplicateSource.name}` : "Crear pack de almacenamiento"}
-          onClose={() => { setShowCreate(false); setDuplicateSource(null); }}
+          title={editSource ? `Editar pack: ${editSource.name}` : duplicateSource ? `Duplicar pack: ${duplicateSource.name}` : "Crear pack de almacenamiento"}
+          onClose={() => { setShowCreate(false); setDuplicateSource(null); setEditSource(null); }}
         >
           <form onSubmit={createPack} className="space-y-4">
             <label className="block text-sm font-semibold">
@@ -459,7 +511,7 @@ export function PackManager() {
                 name="name"
                 required
                 placeholder="Ej. Caja 01 - Conservas"
-                defaultValue={duplicateSource ? `${duplicateSource.name} copia` : ""}
+                defaultValue={editSource?.name ?? (duplicateSource ? `${duplicateSource.name} copia` : "")}
                 className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none focus:border-emerald-500"
               />
             </label>
@@ -470,7 +522,7 @@ export function PackManager() {
                   name="code"
                   required
                   placeholder="C-001"
-                defaultValue={duplicateSource ? `${duplicateSource.code}-2` : ""}
+                defaultValue={editSource?.code ?? (duplicateSource ? `${duplicateSource.code}-2` : "")}
                   className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none"
                 />
               </label>
@@ -480,7 +532,7 @@ export function PackManager() {
                   name="location"
                   required
                   placeholder="Estantería A"
-                defaultValue={duplicateSource?.location ?? ""}
+                defaultValue={editSource?.location ?? duplicateSource?.location ?? ""}
                   className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none"
                 />
               </label>
@@ -491,15 +543,15 @@ export function PackManager() {
                 name="expiresAt"
                 type="date"
                 required
-                defaultValue={duplicateSource?.expiresAt ?? ""}
+                defaultValue={editSource?.expiresAt ?? duplicateSource?.expiresAt ?? ""}
                 className="mt-1.5 h-11 w-full rounded-xl border border-slate-200 px-3 outline-none"
               />
             </label>
             <p className="rounded-lg bg-emerald-50 p-3 text-xs leading-5 text-emerald-800">
-              {duplicateSource ? "Se ha copiado el contenido del pack. Revisa el nombre, código, ubicación y caducidad antes de guardarlo." : "Crear el pack no resta existencias. Solo asigna código, ubicación y una fecha común para organizarlo."}
+              {editSource ? "Puedes quitar artículos desde la ficha del pack o modificar aquí sus datos. El stock nunca se modifica." : duplicateSource ? "Se ha copiado el contenido del pack. Revisa el nombre, código, ubicación y caducidad antes de guardarlo." : "Crear el pack no resta existencias. Solo asigna código, ubicación y una fecha común para organizarlo."}
             </p>
             <button className="h-11 w-full rounded-xl bg-emerald-600 text-sm font-bold text-white">
-              {duplicateSource ? "Guardar pack duplicado" : "Crear caja"}
+              {editSource ? "Guardar cambios" : duplicateSource ? "Guardar pack duplicado" : "Crear caja"}
             </button>
           </form>
         </Modal>
